@@ -1,0 +1,160 @@
+#!/bin/bash
+
+VERSION="0.1.0"
+
+ENV_DIR="$HOME/.envman"
+
+## Util
+
+Error() {
+	if test "$#" -ne 1; then
+		exit 255
+	fi
+	err="$1"
+	echo "Error: $err"
+	echo "See -h for help"
+	exit 1
+}
+
+Help() {
+	# Display Help
+	echo "Manage your environment with ease"
+	echo
+	echo "Syntax: envman [-h|-V] <subcommand>"
+	echo "Subcommands:"
+	echo "  activate: Activate other environment"
+	echo "  active: Print currently active environment"
+	echo "  list: List available environments"
+	echo "  new: Create new environment"
+	echo "  edit: Edit environment with \$EDITOR"
+	echo "  shell: Print command for executing the active env"
+	echo
+	echo "Options:"
+	echo "h       Print this help"
+	echo "V       Print version"
+	echo "d       Set envman directory"
+	echo
+}
+
+Version() {
+	echo "Envman v$VERSION"
+}
+
+# usage: argc argreq
+chk_argc() {
+	if test "$1" -ne "$2"; then
+		Error "Illegal number of parameters"
+	fi
+}
+
+chk_file() {
+	if [[ ! -f "$1" ]]; then
+		echo "Error: File doesn't exist"
+		exit 1
+	fi
+}
+
+## COMMANDS
+sub_activate() {
+	chk_argc "$#" 1
+
+	name="$1"
+	path="$ENV_DIR/$name.env"
+
+	chk_file "$path"
+
+	rm -f "$ENV_DIR/active"
+	ln -s "$path" "$ENV_DIR/active"
+}
+
+sub_active() {
+	chk_file "$ENV_DIR/active"
+
+	path="$(readlink -f "$ENV_DIR/active")"
+
+	base="$(basename "$path")"
+
+	echo "Currently, '${base%.env}' is active"
+}
+
+sub_list() {
+	echo "Available environments:"
+	shopt -s globstar nullglob
+	for file in "$ENV_DIR"/*.env; do
+		base="$(basename "$file")"
+		printf "\t%s\n" "${base%.env}"
+	done
+	exit
+}
+
+sub_shell() {
+	echo "source $ENV_DIR/active"
+}
+
+sub_edit() {
+	chk_argc "$#" 1
+
+	name="$1"
+	path="$ENV_DIR/$name.env"
+
+	chk_file "$path"
+
+	"$EDITOR" "$path"
+}
+
+sub_new() {
+	chk_argc "$#" 1
+
+	name="$1"
+	path="$ENV_DIR/$name.env"
+
+	echo "Creating new environment '$name'"
+	touch "$path"
+
+	echo "Do you wish to edit the new environment?"
+
+	select yn in "Yes" "No"; do
+		case $yn in
+		Yes)
+			"$EDITOR" "$path"
+			break
+			;;
+		No) exit ;;
+		esac
+	done
+
+	exit
+}
+
+## Main program
+while getopts ":hVd:" option; do
+	case $option in
+	h) # display Help
+		Help
+		exit
+		;;
+	V)
+		Version
+		exit
+		;;
+	d)
+		ENV_DIR="$OPTARG"
+		;;
+	\?)
+		Error "Invalid option"
+		;;
+	esac
+done
+
+shift $((OPTIND - 1))
+
+subcommand=$1
+case $subcommand in
+*)
+	shift
+	sub_${subcommand} $@
+	if [ $? = 127 ]; then
+		Error "'$subcommand' is not a known subcommand."
+	fi
+	;;
+esac
