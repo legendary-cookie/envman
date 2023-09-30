@@ -149,12 +149,18 @@ done
 shift $((OPTIND - 1))
 
 subcommand=$1
+
+if [ -z "$subcommand" ]; then
+	Help
+	exit
+fi
+
 case $subcommand in
 *)
 	shift
-	sub_${subcommand} $@
-	if [ $? = 127 ]; then
+	if [[ ! $(type -t "sub_${subcommand}") == function ]]; then
 		Error "'$subcommand' is not a known subcommand."
 	fi
+	"sub_${subcommand}" $@
 	;;
 esac
